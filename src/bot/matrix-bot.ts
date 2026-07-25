@@ -599,8 +599,26 @@ async function runSyncLoop(): Promise<void> {
 					}
 
 					if (room.timeline?.events) {
-						// Only process new events (not the ones from prev_batch on first sync)
 						await processTimeline(roomId, room.timeline);
+					}
+				}
+			}
+
+			if (sync.rooms?.invite) {
+				for (const roomId of Object.keys(sync.rooms.invite)) {
+					if (!client.joinedRooms.has(roomId)) {
+						console.log(`[sync] auto-joining invited room ${roomId.slice(0, 8)}`);
+						await client.joinRoom(roomId).catch((err) => {
+							console.error(`[sync] failed to join ${roomId.slice(0, 8)}:`, err);
+						});
+						// Fetch members and add to joinedRooms after join
+						const members = await client.getRoomMembers(roomId).catch(() => []);
+						client.joinedRooms.set(roomId, {
+							room_id: roomId,
+							name: roomId.slice(0, 8),
+							members: members.map((m) => m.user_id),
+							membersMap: new Map(members.map((m) => [m.user_id, m])),
+						});
 					}
 				}
 			}
@@ -622,21 +640,34 @@ export async function startBot(): Promise<void> {
 
 	// Get initial sync to discover rooms
 	const initialSync = await client.sync(undefined, 10000);
+	const joinRoomAndTrack = async (roomId: string) => {
+		const members = await client.getRoomMembers(roomId);
+		const roomName = roomId.slice(0, 8);
+		client.joinedRooms.set(roomId, {
+			room_id: roomId,
+			name: roomName,
+			members: members.map((m) => m.user_id),
+			membersMap: new Map(members.map((m) => [m.user_id, m])),
+		});
+	};
+
 	if (initialSync.rooms?.join) {
 		for (const roomId of Object.keys(initialSync.rooms.join)) {
-			const members = await client.getRoomMembers(roomId);
-			const roomName =
-				(initialSync.rooms.join[roomId].state?.events?.find(
-					(e) => e.type === "m.room.name",
-				)?.content.name as string) ?? roomId;
-			client.joinedRooms.set(roomId, {
-				room_id: roomId,
-				name: roomName,
-				members: members.map((m) => m.user_id),
-				membersMap: new Map(members.map((m) => [m.user_id, m])),
-			});
+			await joinRoomAndTrack(roomId);
 		}
 	}
+
+	// Auto-accept pending invites from initial sync
+	if (initialSync.rooms?.invite) {
+		for (const roomId of Object.keys(initialSync.rooms.invite)) {
+			console.log(`[bot] auto-joining invited room ${roomId.slice(0, 8)}`);
+			await client.joinRoom(roomId).catch((err) =>
+				console.error(`[bot] failed to join ${roomId.slice(0, 8)}:`, err),
+			);
+			await joinRoomAndTrack(roomId);
+		}
+	}
+
 	console.log(`[bot] joined ${client.joinedRooms.size} rooms`);
 
 	// Load persisted state
