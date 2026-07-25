@@ -139,12 +139,13 @@ function processQueue(): void {
 		setTimeout(() => processQueue(), 100);
 	};
 
-	currentDoneHandler = (text: string) => {
-		llmBus.off("done", currentDoneHandler!);
+	const doneHandler = (text: string) => {
+		llmBus.off("done", doneHandler);
 		currentDoneHandler = null;
 		finish(text);
 	};
-	llmBus.on("done", currentDoneHandler);
+	currentDoneHandler = doneHandler;
+	llmBus.on("done", doneHandler);
 
 	if (LLM_MODE === "direct") {
 		void proxyRequest(item).catch((err) => {

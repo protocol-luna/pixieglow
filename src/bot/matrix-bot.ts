@@ -60,7 +60,7 @@ function drainSessionQueue(
 	queued: { body: string; sender: string; reason: string; eventId: string }[],
 ): void {
 	if (queued.length === 0) return;
-	const next = queued.shift()!;
+	const next = queued.shift() as { body: string; sender: string; reason: string; eventId: string };
 	console.log(
 		`[bot] session queue: resuming queued message in ${roomId.slice(0, 8)}`,
 	);
@@ -97,7 +97,7 @@ function drainPendingForRoom(
 ): { body: string; sender: string; reason: string; eventId: string } | null {
 	const q = roomPending.get(roomId);
 	if (q && q.length > 0) {
-		const next = q.shift()!;
+		const next = q.shift() as { body: string; sender: string; reason: string; eventId: string };
 		if (q.length === 0) roomPending.delete(roomId);
 		return next;
 	}
