@@ -1,0 +1,23 @@
+{
+  "name": "pixieglow",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "build": "bun build src/index.ts --compile --outfile=pixieglow",
+    "start": "bun run src/index.ts",
+    "dev": "bun --watch src/index.ts",
+    "format": "bunx @biomejs/biome format --write ./src",
+    "check": "bunx @biomejs/biome check ./src",
+    "lint": "bunx @biomejs/biome lint ./src",
+    "lint:write": "bunx @biomejs/biome lint --write ./src"
+  },
+  "dependencies": {
+    "js-yaml": "^4.2.0"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.5.0",
+    "@types/js-yaml": "^4.0.9",
+    "@types/node": "^25.9.3",
+    "typescript": "^5.8.0"
+  }
+}

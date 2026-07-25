@@ -1,0 +1,8 @@
+node_modules/
+state.json
+config.yml
+prompt.txt
+*.gguf
+bin/
+tts-engine/
+self-cli.cjs
