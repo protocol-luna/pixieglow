@@ -134,9 +134,12 @@ function checkSessionLimit(
 }
 
 function stripMention(text: string): string {
+	const localpart = botId.split(":")[0]; // @pixieglow
+	const name = localpart.replace("@", ""); // pixieglow
 	return text
 		.replace(new RegExp(`<${botId}>`, "g"), "")
-		.replace(new RegExp(botId.split(":")[0].replace("@", ""), "gi"), "")
+		.replace(new RegExp(localpart.replace("@", "\\@"), "g"), "")
+		.replace(new RegExp(name, "gi"), "")
 		.trim();
 }
 
