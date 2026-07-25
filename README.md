@@ -48,8 +48,7 @@ matrix_token: "your_matrix_token"
 matrix_username: "pixieglow"
 bot_server: "your-server.example.com"
 
-# Direct mode (llama-server)
-llama_model_path: "./models/my-model.gguf"
+# Direct mode (krystal)
 llm_host: "localhost"
 llm_port: 3124
 llm_mode: "direct"
