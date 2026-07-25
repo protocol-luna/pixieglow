@@ -77,11 +77,6 @@ export const BOT_SERVER: string =
 	process.env.BOT_SERVER ??
 	"protocol-luna.github.io";
 
-export const LLAMA_MODEL_PATH: string =
-	v<string | null>("llama_model_path", null) ??
-	process.env.LLAMA_MODEL_PATH ??
-	join(ROOT, "models", "Discord-Micae-Hermes-3-3B.Q8_0.gguf");
-
 export const LLM_HOST: string =
 	v<string | null>("llm_host", null) ?? process.env.LLM_HOST ?? "localhost";
 
@@ -111,18 +106,9 @@ export const LLM_MODEL: string =
 export const LLM_SESSION_TTL: number =
 	v<number | null>("llm_session_ttl", null) ?? 10;
 
-export const LLM_N_THREADS: number | "auto" =
-	v<number | "auto" | null>("llm_n_threads", null) ??
-	(process.env.LLM_N_THREADS as number | "auto" | undefined) ??
-	"auto";
-
 export const LLM_N_SLOTS: number =
 	v<number | null>("llm_n_slots", null) ??
 	Number.parseInt(process.env.LLM_N_SLOTS ?? "1", 10);
-
-export const LLM_N_CTX: number =
-	v<number | null>("llm_n_ctx", null) ??
-	Number.parseInt(process.env.LLM_N_CTX ?? "8192", 10);
 
 export const SYSTEM_PROMPT = (() => {
 	const fromYaml = v<string | null>("system_prompt", null);

@@ -1,6 +1,6 @@
 # pixieglow
 
-A conversational Matrix bot powered by an LLM, ported from the [Luna Protocol](https://github.com/fox3000foxy/Luna-Protocol) Discord bot.
+A conversational Matrix bot powered by an LLM, part of the [Protocol Luna](https://github.com/protocol-luna/.github) project.
 
 Built for [tuwunel](https://github.com/tuwunel/tuwunel) — a Matrix homeserver written in Rust.
 
@@ -27,7 +27,7 @@ Built for [tuwunel](https://github.com/tuwunel/tuwunel) — a Matrix homeserver 
 - [Bun](https://bun.sh) >= 1.3
 - A Matrix homeserver (tested with [tuwunel](https://github.com/tuwunel/tuwunel))
 - An LLM backend:
-  - **Direct mode**: [llama-server](https://github.com/ggml-org/llama.cpp) with a GGUF model
+  - **Direct mode**: [krystal](https://github.com/protocol-luna/krystal) (llama-server)
   - **Online mode**: any OpenAI-compatible API
 
 ## Setup
@@ -66,8 +66,8 @@ llm_mode: "direct"
 Every `config.yml` field can be overridden with environment variables:
 
 - `MATRIX_HOMESERVER`, `MATRIX_TOKEN`, `MATRIX_USERNAME`, `BOT_SERVER`
-- `LLAMA_MODEL_PATH`, `LLM_HOST`, `LLM_PORT`, `LLM_MODE`, `LLM_API_ENDPOINT`, `LLM_API_TOKEN`, `LLM_MODEL`
-- `LLM_SESSION_TTL`, `LLM_N_THREADS`, `LLM_N_SLOTS`, `LLM_N_CTX`
+- `LLM_HOST`, `LLM_PORT`, `LLM_MODE`, `LLM_API_ENDPOINT`, `LLM_API_TOKEN`, `LLM_MODEL`
+- `LLM_SESSION_TTL`, `LLM_N_SLOTS`
 - `TTS_MODEL_PATH`, `TTS_BINARY_PATH`, `FFMPEG_PATH`, `FFPROBE_PATH`
 
 ## Usage
@@ -99,6 +99,12 @@ src/
 ├── config.ts       # Hot-reloadable configuration
 └── index.ts        # Entry point
 ```
+
+## Related
+
+- [krystal](https://github.com/protocol-luna/krystal) — LLM inference server
+- [jade](https://github.com/protocol-luna/jade) — Discord bot client
+- [protocol-luna](https://github.com/protocol-luna/.github) — Documentation & state-machine diagrams
 
 ## License
 

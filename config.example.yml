@@ -38,7 +38,7 @@ mirostat_lr: 0.1
 mirostat_ent: 5.0
 
 # --- LLM ---
-llama_model_path: "./models/Luna-Protocol-1.5B-Fine-Tuned-Qwen2.5.Q4_K_M.gguf"
+# Connexion au serveur LLM (krystal) ou API distante
 llm_host: "localhost"
 llm_port: 3124
 llm_server_key: ""
