@@ -38,9 +38,10 @@ mirostat_lr: 0.1
 mirostat_ent: 5.0
 
 # --- LLM ---
-# Connexion au serveur LLM (krystal) ou API distante
+# Sapphire est le point d'entrée unique pour tous les bots.
+# Il classifie chaque message et route vers la bonne instance Krystal.
 llm_host: "localhost"
-llm_port: 3124
+llm_port: 3123
 llm_server_key: ""
 llm_session_ttl: 10
 llm_mode: "direct"
