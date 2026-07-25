@@ -2,25 +2,25 @@
 
 A conversational Matrix bot powered by an LLM, part of the [Protocol Luna](https://github.com/protocol-luna/.github) project.
 
-Built for [tuwunel](https://github.com/tuwunel/tuwunel) — a Matrix homeserver written in Rust.
+Built for [tuwunel](https://github.com/tuwunel/tuwunel) -- a Matrix homeserver written in Rust.
 
 ## Features
 
-- **Mention replies** — responds when pinged with `@pixieglow:server`
-- **Name detection** — replies when someone says its name
-- **Keywords** — reacts to specific words in conversation
-- **Spontaneous messages** — occasionally chimes in unprompted
-- **Conversation tracking** — naturally follows up on recent messages
-- **Typos** — makes typing mistakes and self-corrects (AZERTY/QWERTY)
-- **Burst** — sometimes sends a second message after the first
-- **Hesitations** — starts with "uh...", "um..." now and then
-- **Reactions** — adds emoji to messages
-- **Time schedules** — behaves differently depending on time of day (active, slow, sleep, short)
-- **Topic fatigue** — loses interest in repeated topics
-- **Sessions** — message limit per session with pause
-- **Warm-up** — slower responses after inactivity
-- **TTS** — voice messages via Piper
-- **Hot-reload** — config reloads without restart
+- **Mention replies** -- responds when pinged with `@pixieglow:server`
+- **Name detection** -- replies when someone says its name
+- **Keywords** -- reacts to specific words in conversation
+- **Spontaneous messages** -- occasionally chimes in unprompted
+- **Conversation tracking** -- naturally follows up on recent messages
+- **Typos** -- makes typing mistakes and self-corrects (AZERTY/QWERTY)
+- **Burst** -- sometimes sends a second message after the first
+- **Hesitations** -- starts with "uh...", "um..." now and then
+- **Reactions** -- adds emoji to messages
+- **Time schedules** -- behaves differently depending on time of day (active, slow, sleep, short)
+- **Topic fatigue** -- loses interest in repeated topics
+- **Sessions** -- message limit per session with pause
+- **Warm-up** -- slower responses after inactivity
+- **TTS** -- voice messages via Piper
+- **Hot-reload** -- config reloads without restart
 
 ## Requirements
 
@@ -101,9 +101,9 @@ src/
 
 ## Related
 
-- [krystal](https://github.com/protocol-luna/krystal) — LLM inference server
-- [jade](https://github.com/protocol-luna/jade) — Discord bot client
-- [protocol-luna](https://github.com/protocol-luna/.github) — Documentation & state-machine diagrams
+- [krystal](https://github.com/protocol-luna/krystal) -- LLM inference server
+- [jade](https://github.com/protocol-luna/jade) -- Discord bot client
+- [protocol-luna](https://github.com/protocol-luna/.github) -- Documentation & state-machine diagrams
 
 ## License
 
