@@ -127,10 +127,7 @@ export async function askLLM(
 		sessions.set(sid, session);
 	}
 	session.lastUsed = Date.now();
-	const userMsg = userMessage.username
-		? `${userMessage.username}: ${userMessage.text}`
-		: userMessage.text;
-	session.messages.push({ role: "user", content: userMsg });
+	session.messages.push({ role: "user", content: userMessage.text });
 	cleanupStaleSessions();
 	const slot = slotForSession(sid);
 	const response = await askLlamaServer(session.messages, slot);

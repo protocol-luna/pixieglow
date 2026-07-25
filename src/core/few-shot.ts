@@ -5,11 +5,10 @@ export interface FewShotExample {
 
 export function formatFewShotExamples(
 	examples: FewShotExample[],
-	username = "user",
 ): Array<{ role: "user" | "assistant"; content: string }> {
 	const messages: Array<{ role: "user" | "assistant"; content: string }> = [];
 	for (const example of examples) {
-		messages.push({ role: "user", content: `${username}: ${example.user}` });
+		messages.push({ role: "user", content: example.user });
 		messages.push({ role: "assistant", content: example.assistant });
 	}
 	return messages;

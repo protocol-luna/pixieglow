@@ -28,10 +28,7 @@ export async function askOnline(
 		messages = [{ role: "system", content: SYSTEM_PROMPT }];
 		conversations.set(sid, messages);
 	}
-	const userMsg = userMessage.username
-		? `${userMessage.username}: ${userMessage.text}`
-		: userMessage.text;
-	messages.push({ role: "user", content: userMsg });
+	messages.push({ role: "user", content: userMessage.text });
 
 	let finalMessages = [...messages];
 	if (FEW_SHOT_ENABLED && FEW_SHOT_EXAMPLES.length > 0) {
