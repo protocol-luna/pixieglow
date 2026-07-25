@@ -18,6 +18,9 @@
     "@biomejs/biome": "^2.5.0",
     "@types/js-yaml": "^4.0.9",
     "@types/node": "^25.9.3",
-    "typescript": "^5.8.0"
-  }
+    "typescript": "^5.8.0",
+    "@types/bun": "latest"
+  },
+  "module": "src/index.ts",
+  "private": true
 }
