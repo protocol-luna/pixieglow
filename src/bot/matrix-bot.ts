@@ -566,8 +566,8 @@ async function processTimeline(
 	}
 }
 
-async function runSyncLoop(): Promise<void> {
-	let since: string | undefined;
+async function runSyncLoop(initialSince?: string): Promise<void> {
+	let since = initialSince;
 	console.log("[sync] starting sync loop...");
 
 	while (true) {
@@ -690,7 +690,7 @@ export async function startBot(): Promise<void> {
 	await client.updatePresence("online");
 
 	// Start sync loop for real-time events
-	void runSyncLoop();
+	void runSyncLoop(initialSync.next_batch);
 
 	// Spontaneous messages
 	setInterval(() => {
