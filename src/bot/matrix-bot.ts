@@ -1,151 +1,53 @@
-import {
-	computeDelay,
-	pickReaction,
-	shouldIgnore,
-	shouldReact,
-} from "../behavior/mannerisms.js";
-import { getSleepBehavior, type SleepBehavior } from "../behavior/sleep.js";
-import { applyTypo, type TypoResult } from "../behavior/typo.js";
+import { applyTypo } from "../behavior/typo.js";
 import {
 	BOT_SERVER,
-	config,
+	EMERALD_HOST,
+	EMERALD_PORT,
 	MATRIX_USERNAME,
-	pickReplyStyle,
-	watchConfig,
 } from "../config.js";
+import {
+	EmeraldClient,
+	type OutCommand,
+	type RespondCommand,
+	type SetPresenceCommand,
+} from "../core/emerald-client.js";
 import { llmBus } from "../core/llm-bus.js";
-import { askLLM, resetLLM } from "../core/llm-core.js";
+import { askLLM } from "../core/llm-core.js";
 import { MatrixClient } from "../matrix/client.js";
-import { trySpawn } from "../spontaneous.js";
-import { loadState } from "../state/persistence.js";
-import {
-	canFollowUp,
-	clearCooldown,
-	getGlobalInactivityMs,
-	isRecentBotActivity,
-	markBotActivity,
-	markReplied,
-	restoreState,
-	setPaused,
-	startPruning,
-	trackSpeaker,
-} from "../state/state.js";
-import {
-	getFatigueIgnoreBonus,
-	getFatigueMultiplier,
-	pruneTopicFatigue,
-	recordMessage,
-} from "../state/topic-fatigue.js";
-import { evaluateMessage, type TriggerResult } from "../state/trigger.js";
 
 const botId = `@${MATRIX_USERNAME}:${BOT_SERVER}`;
-
 const client = new MatrixClient();
+const emerald = new EmeraldClient("pixieglow", {
+	host: EMERALD_HOST,
+	port: EMERALD_PORT,
+});
 
-const sessionCounts = new Map<string, number>();
-const sessionPaused = new Set<string>();
-const sessionLastMessage = new Map<string, number>();
 const typingTimers = new Map<string, ReturnType<typeof setInterval>>();
 
-function clearTypingTimer(roomId: string): void {
-	const existing = typingTimers.get(roomId);
-	if (existing) {
-		clearInterval(existing);
-		typingTimers.delete(roomId);
-	}
+function clearTypingTimer(roomId: string) {
+	const t = typingTimers.get(roomId);
+	if (t) clearInterval(t);
+	typingTimers.delete(roomId);
 }
 
-function drainSessionQueue(
-	roomId: string,
-	queued: { body: string; sender: string; reason: string; eventId: string }[],
-): void {
-	if (queued.length === 0) return;
-	const next = queued.shift() as {
-		body: string;
-		sender: string;
-		reason: string;
-		eventId: string;
-	};
-	console.log(
-		`[bot] session queue: resuming queued message in ${roomId.slice(0, 8)}`,
-	);
-	void triggerLunaReply(
-		next.body,
-		next.sender,
+function startTyping(roomId: string) {
+	clearTypingTimer(roomId);
+	client.setTyping(roomId, 15000);
+	typingTimers.set(
 		roomId,
-		next.eventId,
-		false,
-		next.reason,
-	).then(() => {
-		if (!sessionPaused.has(roomId)) drainSessionQueue(roomId, queued);
-	});
+		setInterval(() => {
+			client.setTyping(roomId, 15000);
+		}, 12000),
+	);
 }
 
-const roomPending = new Map<
-	string,
-	{ body: string; sender: string; reason: string; eventId: string }[]
->();
-function queuePending(
-	roomId: string,
-	body: string,
-	sender: string,
-	reason: string,
-	eventId: string,
-): void {
-	const q = roomPending.get(roomId) ?? [];
-	q.push({ body, sender, reason, eventId });
-	roomPending.set(roomId, q);
+function stripLlmPrefix(text: string): string {
+	return text.replace(/^[^:]+:\s*/, "");
 }
 
-function drainPendingForRoom(
-	roomId: string,
-): { body: string; sender: string; reason: string; eventId: string } | null {
-	const q = roomPending.get(roomId);
-	if (q && q.length > 0) {
-		const next = q.shift() as {
-			body: string;
-			sender: string;
-			reason: string;
-			eventId: string;
-		};
-		if (q.length === 0) roomPending.delete(roomId);
-		return next;
-	}
-	roomPending.delete(roomId);
-	return null;
-}
-
-const isProcessing = new Set<string>();
-
-function processingKey(roomId: string, sender: string): string {
-	return `${roomId}:${sender}`;
-}
-
-// --- Session limit ---
-function checkSessionLimit(
-	roomId: string,
-	callback: (roomId: string) => void,
-): void {
-	const count = (sessionCounts.get(roomId) ?? 0) + 1;
-	sessionCounts.set(roomId, count);
-	if (count >= config.sessionMessageLimit) {
-		sessionPaused.add(roomId);
-		console.log(
-			`[bot] session limit (${count}), pause ${config.sessionPauseSeconds}s`,
-		);
-		setTimeout(() => {
-			sessionPaused.delete(roomId);
-			sessionCounts.delete(roomId);
-			callback(roomId);
-			console.log("[bot] session resumed, context cleared");
-			void drainSessionQueue(roomId, roomPending.get(roomId) ?? []);
-		}, config.sessionPauseSeconds * 1000);
-	}
-}
-
-function stripMention(text: string): string {
-	const localpart = botId.split(":")[0]; // @pixieglow
-	const name = localpart.replace("@", ""); // pixieglow
+function _stripMention(text: string): string {
+	const localpart = botId.split(":")[0];
+	const name = localpart.replace("@", "");
 	return text
 		.replace(new RegExp(`<${botId}>`, "g"), "")
 		.replace(new RegExp(localpart.replace("@", "\\@"), "g"), "")
@@ -153,265 +55,186 @@ function stripMention(text: string): string {
 		.trim();
 }
 
-async function triggerLunaReply(
-	body: string,
-	sender: string,
-	roomId: string,
-	eventId: string,
-	isDM: boolean,
-	reason: string | null,
-): Promise<void> {
-	const key = processingKey(roomId, sender);
-	if (isProcessing.has(key)) {
-		queuePending(roomId, body, sender, reason ?? "mention", eventId);
-		return;
+async function executeRespond(cmd: RespondCommand): Promise<void> {
+	const {
+		channel: roomId,
+		text: prompt,
+		delay,
+		replyTo,
+		replyStyle,
+		hesitationWord,
+		burstPlan,
+		react,
+		sessionId,
+	} = cmd;
+
+	await new Promise((r) => setTimeout(r, delay));
+
+	if (react) {
+		setTimeout(async () => {
+			await client
+				.sendReaction(roomId, replyTo ?? "", react.emoji)
+				.catch(() => {});
+		}, react.delay);
 	}
-	isProcessing.add(key);
 
-	const startTyping = () => {
-		clearTypingTimer(roomId);
-		client.setTyping(roomId, 15000);
-		typingTimers.set(
-			roomId,
-			setInterval(() => {
-				client.setTyping(roomId, 15000);
-			}, 12000),
-		);
+	startTyping(roomId);
+
+	const chunks: string[] = [];
+	let currentHesitation = hesitationWord ?? "";
+
+	const onToken = (word: string) => {
+		chunks.push(word);
 	};
-
-	const style = pickReplyStyle(isRecentBotActivity(roomId));
-	const refStyle = isDM
-		? { messageReference: false, mentionRepliedUser: false }
-		: style;
-
-	let onToken: ((word: string) => void) | null = null;
-	let hesitationWord = "";
+	llmBus.on("token", onToken);
 
 	try {
-		const content = stripMention(body);
-		const displayName = client.getDisplayName(sender);
-		const chunks: string[] = [];
-		let messageBuffer = "";
-		let _isFirstChunk = true;
-
-		const willBurst = Math.random() < config.burstChance;
-
-		function stripLlmPrefix(text: string): string {
-			return text.replace(/^[^:]+:\s*/, "");
-		}
-
-		async function sendFragments(
-			parts: string[],
-			replyTo: string | undefined,
-		): Promise<string | null> {
-			let accDelay = 0;
-			let firstPromise: Promise<string | null> | null = null;
-			for (let i = 0; i < parts.length; i++) {
-				const frag = stripLlmPrefix(parts[i]);
-				if (!frag) continue;
-				if (i === 0) {
-					const finalContent = hesitationWord
-						? `${hesitationWord} ${frag}`
-						: frag;
-					hesitationWord = "";
-					firstPromise = client
-						.sendText(roomId, finalContent, replyTo)
-						.then((id) => {
-							_isFirstChunk = false;
-							markBotActivity(roomId);
-							return id;
-						})
-						.catch(() => null);
-				} else {
-					const delay =
-						config.burstDelayMin +
-						Math.random() * (config.burstDelayMax - config.burstDelayMin);
-					accDelay += delay;
-					const fragContent = hesitationWord
-						? `${hesitationWord} ${frag}`
-						: frag;
-					hesitationWord = "";
-					setTimeout(() => {
-						client
-							.sendText(roomId, fragContent)
-							.then(() => markBotActivity(roomId))
-							.catch(() => {});
-					}, accDelay);
-				}
-			}
-			return firstPromise ?? Promise.resolve(null);
-		}
-
-		function splitBurst(text: string): string[] {
-			if (!willBurst) return [text];
-			const words = text.split(/\s+/);
-			if (words.length < 4) return [text];
-			const nFrags = Math.random() < 0.6 ? 2 : 3;
-			if (nFrags === 2) {
-				const splitAt = Math.floor(words.length * (0.3 + Math.random() * 0.25));
-				return [
-					words.slice(0, splitAt).join(" "),
-					words.slice(splitAt).join(" "),
-				];
-			}
-			const split1 = Math.floor(words.length * (0.2 + Math.random() * 0.15));
-			const split2 = Math.floor(words.length * (0.55 + Math.random() * 0.15));
-			return [
-				words.slice(0, split1).join(" "),
-				words.slice(split1, split2).join(" "),
-				words.slice(split2).join(" "),
-			];
-		}
-
-		onToken = (word: string) => {
-			chunks.push(word);
-			if (messageBuffer) messageBuffer += " ";
-			messageBuffer += word;
-		};
-		llmBus.on("token", onToken);
-
-		const hasHesitation = Math.random() < config.hesitationChance;
-		if (hasHesitation)
-			hesitationWord =
-				config.hesitationWords[
-					Math.floor(Math.random() * config.hesitationWords.length)
-				];
-
-		startTyping();
-
 		const fullText = await askLLM({
-			username: displayName,
-			text: content,
-			sessionId: roomId,
+			username: "User",
+			text: prompt,
+			sessionId: sessionId ?? roomId,
 		});
 
 		const text = stripLlmPrefix(fullText);
+		if (!text) return;
+
 		let textToSend = text;
-		let typoResult: TypoResult | null = null;
 
-		if (chunks.length > 0 && Math.random() < config.typoChance) {
+		if (chunks.length > 0 && Math.random() < 0.06) {
 			const idx = Math.floor(Math.random() * chunks.length);
-			const result = applyTypo(chunks[idx], config.typoLayout);
+			const result = applyTypo(chunks[idx], "azerty");
 			if (result && text.includes(result.originalWord)) {
-				typoResult = result;
 				textToSend = text.replace(result.originalWord, result.correctedWord);
-				console.log(
-					`[bot] typo: "${result.originalWord}" → "${result.correctedWord}"`,
-				);
 			}
 		}
 
-		const willEdit =
-			typoResult &&
-			(config.typoCorrectionStyle === "edit" ||
-				(config.typoCorrectionStyle === "mixed" && Math.random() < 0.5));
+		const parts = burstPlan
+			? splitBurst(textToSend, burstPlan.fragmentCount)
+			: [textToSend];
 
-		let firstMessageId: string | null = null;
-		const parts = splitBurst(textToSend);
-		firstMessageId = await sendFragments(
-			parts,
-			refStyle.messageReference ? eventId : undefined,
-		);
+		let _firstMsgId: string | null = null;
+		let accDelay = 0;
 
-		if (typoResult && firstMessageId) {
-			const delay =
-				config.typoCorrectionDelay +
-				Math.random() *
-					(config.typoCorrectionDelayMax - config.typoCorrectionDelay);
-			await new Promise((r) => setTimeout(r, delay));
-			if (willEdit) {
-				// Matrix doesn't support editing via client API easily, so just send correction
-				await client.sendText(roomId, text).catch(() => {});
-				console.log(
-					`[bot] typo corrected (sent clean): "${typoResult.correctedWord}" → "${typoResult.originalWord}"`,
-				);
+		for (let i = 0; i < parts.length; i++) {
+			const frag = parts[i];
+			if (!frag) continue;
+
+			let content = frag;
+			if (i === 0 && currentHesitation) {
+				content = `${currentHesitation} ${frag}`;
+				currentHesitation = "";
+			}
+
+			if (i === 0) {
+				_firstMsgId = await client
+					.sendText(
+						roomId,
+						content,
+						replyStyle.messageReference ? replyTo : undefined,
+					)
+					.catch(() => null);
+				emerald.sendEvent({
+					type: "bot_message",
+					client: "pixieglow",
+					channel: roomId,
+					text: content,
+					timestamp: Date.now(),
+				});
 			} else {
-				await client
-					.sendText(roomId, `${typoResult.originalWord}*`)
-					.catch(() => {});
-				console.log(`[bot] typo corrected: "${typoResult.originalWord}*"`);
+				accDelay += burstPlan?.fragmentDelays[i - 1] ?? 2000;
+				setTimeout(async () => {
+					const sent = await client.sendText(roomId, content).catch(() => null);
+					if (sent) {
+						emerald.sendEvent({
+							type: "bot_message",
+							client: "pixieglow",
+							channel: roomId,
+							text: content,
+							timestamp: Date.now(),
+						});
+					}
+				}, accDelay);
 			}
-		}
-
-		trackSpeaker(roomId, botId);
-		markReplied(roomId);
-	} catch (err) {
-		console.error(err);
-		try {
-			await client.sendReaction(roomId, eventId, "❌");
-		} catch {
-			/* ignore */
 		}
 	} finally {
-		isProcessing.delete(key);
 		clearTypingTimer(roomId);
-		if (onToken) llmBus.off("token", onToken);
+		llmBus.off("token", onToken);
+	}
+}
 
-		const queued = drainPendingForRoom(roomId);
-		if (queued) {
-			console.log(
-				`[bot] room ${roomId.slice(0, 8)}: responding to queued message (${queued.reason})`,
-			);
-			await triggerLunaReply(
-				queued.body,
-				queued.sender,
-				roomId,
-				queued.eventId,
-				false,
-				queued.reason,
-			);
+function splitBurst(text: string, nFrags: number): string[] {
+	const words = text.split(/\s+/);
+	if (words.length < 4) return [text];
+
+	if (nFrags === 2) {
+		const splitAt = Math.floor(words.length * (0.3 + Math.random() * 0.25));
+		return [words.slice(0, splitAt).join(" "), words.slice(splitAt).join(" ")];
+	}
+	const split1 = Math.floor(words.length * (0.2 + Math.random() * 0.15));
+	const split2 = Math.floor(words.length * (0.55 + Math.random() * 0.15));
+	return [
+		words.slice(0, split1).join(" "),
+		words.slice(split1, split2).join(" "),
+		words.slice(split2).join(" "),
+	];
+}
+
+function handleSetPresence(cmd: SetPresenceCommand) {
+	void client.updatePresence(cmd.status);
+}
+
+function handleCommand(command: OutCommand) {
+	switch (command.type) {
+		case "respond":
+			void executeRespond(command);
+			break;
+		case "typing":
+			startTyping(command.channel);
+			setTimeout(() => clearTypingTimer(command.channel), command.duration);
+			break;
+		case "set_presence":
+			handleSetPresence(command);
+			break;
+		case "spontaneous":
+			void handleSpontaneous(command.channel, command.sessionId);
+			break;
+	}
+}
+
+async function handleSpontaneous(roomId: string, sessionId: string) {
+	startTyping(roomId);
+	try {
+		const text = await askLLM({
+			username: "System",
+			text: "",
+			sessionId,
+		});
+		const clean = stripLlmPrefix(text);
+		if (clean) {
+			const _sent = await client.sendText(roomId, clean);
+			emerald.sendEvent({
+				type: "bot_message",
+				client: "pixieglow",
+				channel: roomId,
+				text: clean,
+				timestamp: Date.now(),
+			});
 		}
+	} catch (err) {
+		console.error("[bot] spontaneous error:", err);
+	} finally {
+		clearTypingTimer(roomId);
 	}
-}
-
-async function handleCommand(
-	_body: string,
-	roomId: string,
-	result: TriggerResult,
-): Promise<boolean> {
-	if (result.reason === "stop") {
-		await resetLLM(roomId);
-		clearCooldown(roomId);
-		trackSpeaker(roomId, botId);
-		setPaused(true);
-		await client.sendReaction(roomId, "", "✅").catch(() => {});
-		return true;
-	}
-	if (result.reason === "start") {
-		setPaused(false);
-		await client.sendReaction(roomId, "", "✅").catch(() => {});
-		return true;
-	}
-	if (result.reason === "clear") {
-		await resetLLM(roomId);
-		clearCooldown(roomId);
-		trackSpeaker(roomId, botId);
-		await client.sendReaction(roomId, "", "✅").catch(() => {});
-		return true;
-	}
-	return false;
-}
-
-function handleSleep(
-	result: TriggerResult,
-	sleepBehavior: SleepBehavior,
-	roomName: string,
-): boolean {
-	if (
-		sleepBehavior === "sleep" &&
-		result.reason !== "mention" &&
-		result.reason !== "dm"
-	) {
-		console.log(`[bot] ${roomName}: ignored (sleep)`);
-		return true;
-	}
-	return false;
 }
 
 function getRoomDisplayName(roomId: string): string {
 	const room = client.joinedRooms.get(roomId);
 	return room?.name ?? roomId.slice(0, 8);
 }
+
+emerald.onCommand(handleCommand);
+
+// --- Matrix event handling ---
 
 async function handleRoomEvent(
 	roomId: string,
@@ -428,136 +251,25 @@ async function handleRoomEvent(
 	const body = (event.content.body as string) ?? "";
 	const msgtype = (event.content.msgtype as string) ?? "m.text";
 
-	// Only handle text messages
 	if (msgtype !== "m.text" && msgtype !== "m.notice" && msgtype !== "m.emote")
 		return;
 
 	clearTypingTimer(roomId);
 
-	const roomName = getRoomDisplayName(roomId);
+	const _roomName = getRoomDisplayName(roomId);
 	const isDM = client.joinedRooms.get(roomId)?.members.length === 2;
 
-	recordMessage(roomId, body);
-
-	const result: TriggerResult = evaluateMessage(
-		body,
-		event.sender,
-		roomId,
-		roomName,
-		botId,
-		MATRIX_USERNAME,
+	emerald.sendEvent({
+		type: "message",
+		id: event.event_id,
+		client: "pixieglow",
+		channel: roomId,
+		user: event.sender,
+		username: client.getDisplayName(event.sender),
+		text: body,
+		timestamp: Date.now(),
 		isDM,
-	);
-
-	if (await handleCommand(body, roomId, result)) return;
-
-	const sleepBehavior = getSleepBehavior();
-	if (handleSleep(result, sleepBehavior, roomName)) return;
-
-	if (sessionPaused.has(roomId)) {
-		queuePending(
-			roomId,
-			body,
-			event.sender,
-			result.reason ?? "mention",
-			event.event_id,
-		);
-		console.log(`[bot] ${roomName}: queued (session pause)`);
-		return;
-	}
-
-	const lastMsg = sessionLastMessage.get(roomId);
-	if (lastMsg && Date.now() - lastMsg > config.sessionResetMinutes * 60000)
-		sessionCounts.delete(roomId);
-	sessionLastMessage.set(roomId, Date.now());
-
-	if (result.shouldRespond) {
-		trackSpeaker(roomId, event.sender);
-		const fatigueIgnoreBonus = getFatigueIgnoreBonus(roomId);
-		if (
-			!isDM &&
-			(shouldIgnore(result.reason, sleepBehavior) ||
-				Math.random() < fatigueIgnoreBonus)
-		) {
-			console.log(
-				`[bot] ${roomName}: ignored (${result.reason})${fatigueIgnoreBonus > 0 ? ` fatigue=${fatigueIgnoreBonus.toFixed(2)}` : ""}`,
-			);
-			return;
-		}
-		if (!isDM && Math.random() < config.forgetChance) {
-			console.log(`[bot] ${roomName}: forgot (${result.reason})`);
-			return;
-		}
-
-		const delay = computeDelay(
-			result.reason,
-			sleepBehavior,
-			body.length,
-			getGlobalInactivityMs(),
-		);
-
-		setTimeout(async () => {
-			if (shouldReact(result.reason, sleepBehavior)) {
-				const reaction = pickReaction();
-				await client
-					.sendReaction(roomId, event.event_id, reaction)
-					.catch(() => {});
-			}
-		}, delay);
-
-		const fatigueMul = getFatigueMultiplier(roomId);
-		const totalDelay = delay * fatigueMul;
-		await new Promise((r) => setTimeout(r, totalDelay));
-		await triggerLunaReply(
-			body,
-			event.sender,
-			roomId,
-			event.event_id,
-			isDM,
-			result.reason,
-		);
-		checkSessionLimit(roomId, (sid: string) => {
-			void resetLLM(sid);
-		});
-		return;
-	}
-
-	if (canFollowUp(roomId, botId) && sleepBehavior !== "sleep") {
-		trackSpeaker(roomId, event.sender);
-		markReplied(roomId);
-		console.log(`[bot] ${roomName}: follow-up immediate`);
-
-		const fatigueMul = getFatigueMultiplier(roomId);
-		const delay =
-			computeDelay(
-				"follow-up",
-				sleepBehavior,
-				body.length,
-				getGlobalInactivityMs(),
-			) * fatigueMul;
-		await new Promise((r) => setTimeout(r, delay));
-
-		if (shouldReact("follow-up", sleepBehavior)) {
-			const reaction = pickReaction();
-			await client
-				.sendReaction(roomId, event.event_id, reaction)
-				.catch(() => {});
-		}
-
-		await triggerLunaReply(
-			body,
-			event.sender,
-			roomId,
-			event.event_id,
-			isDM,
-			"follow-up",
-		);
-		checkSessionLimit(roomId, (sid: string) => {
-			void resetLLM(sid);
-		});
-	}
-
-	trackSpeaker(roomId, event.sender);
+	});
 }
 
 async function processTimeline(
@@ -587,7 +299,6 @@ async function runSyncLoop(initialSince?: string): Promise<void> {
 
 			if (sync.rooms?.join) {
 				for (const [roomId, room] of Object.entries(sync.rooms.join)) {
-					// Build room info from state events
 					if (room.state?.events) {
 						for (const ev of room.state.events) {
 							if (ev.type === "m.room.name") {
@@ -629,7 +340,6 @@ async function runSyncLoop(initialSince?: string): Promise<void> {
 								err,
 							);
 						});
-						// Fetch members and add to joinedRooms after join
 						const members = await client.getRoomMembers(roomId).catch(() => []);
 						client.joinedRooms.set(roomId, {
 							room_id: roomId,
@@ -647,23 +357,21 @@ async function runSyncLoop(initialSince?: string): Promise<void> {
 	}
 }
 
-export async function startBot(): Promise<void> {
-	watchConfig();
+// --- Init ---
 
-	// Init connection
+export async function startBot(): Promise<void> {
 	const whoami = await client.whoami();
 	client.userId = whoami.user_id;
 	client.deviceId = whoami.device_id;
 	console.log(`Connected as ${client.userId}`);
 
-	// Get initial sync to discover rooms
 	const initialSync = await client.sync(undefined, 10000);
+
 	const joinRoomAndTrack = async (roomId: string) => {
 		const members = await client.getRoomMembers(roomId);
-		const roomName = roomId.slice(0, 8);
 		client.joinedRooms.set(roomId, {
 			room_id: roomId,
-			name: roomName,
+			name: roomId.slice(0, 8),
 			members: members.map((m) => m.user_id),
 			membersMap: new Map(members.map((m) => [m.user_id, m])),
 		});
@@ -675,7 +383,6 @@ export async function startBot(): Promise<void> {
 		}
 	}
 
-	// Auto-accept pending invites from initial sync
 	if (initialSync.rooms?.invite) {
 		for (const roomId of Object.keys(initialSync.rooms.invite)) {
 			console.log(`[bot] auto-joining invited room ${roomId.slice(0, 8)}`);
@@ -690,31 +397,12 @@ export async function startBot(): Promise<void> {
 
 	console.log(`[bot] joined ${client.joinedRooms.size} rooms`);
 
-	// Load persisted state
-	const saved = await loadState();
-	restoreState({
-		roomCooldowns: saved.roomCooldowns,
-		botActivity: saved.botActivity,
-		lastSpeaker: saved.lastSpeaker,
-		responseCount: saved.responseCount,
-		paused: saved.paused,
-	});
-
-	startPruning();
-	setInterval(pruneTopicFatigue, 300_000);
-
-	// Update presence
 	await client.updatePresence("online");
 
-	// Start sync loop for real-time events
-	void runSyncLoop(initialSync.next_batch);
+	emerald.setUserId(botId, MATRIX_USERNAME);
+	emerald.connect();
 
-	// Spontaneous messages
-	setInterval(() => {
-		if (Math.random() < config.spontaneousChance) {
-			void trySpawn(client);
-		}
-	}, config.spontaneousIntervalMs);
+	void runSyncLoop(initialSync.next_batch);
 
 	console.log("[bot] pixieglow is ready!");
 }
