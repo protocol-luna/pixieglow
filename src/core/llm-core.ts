@@ -21,64 +21,11 @@ let isProcessing = false;
 let currentItem: QueueItem | null = null;
 let hasSentFirstToken = false;
 
-const MIN_WORD_DELAY = 20;
-const MAX_WORD_DELAY = 80;
-
-let isProcessingWords = false;
-const wordEmitQueue: Array<() => void> = [];
-let wordQueueSize = 0;
-let pendingDoneText: string | null = null;
-
 let currentDoneHandler: ((text: string) => void) | null = null;
 
 const SAPPHIRE_BASE = `http://${SAPPHIRE_HOST}:${SAPPHIRE_PORT}`;
 
-function processWordEmitQueue(): void {
-	if (isProcessingWords || wordEmitQueue.length === 0) return;
-	isProcessingWords = true;
-	wordEmitQueue.shift()?.();
-}
-
-function signalDone(text: string): void {
-	if (wordQueueSize === 0) llmBus.emit("done", text);
-	else pendingDoneText = text;
-}
-
-function emitWordTokens(chunk: string): void {
-	const words = chunk.match(/\S+/g) ?? [];
-	if (words.length === 0) return;
-	wordQueueSize++;
-	wordEmitQueue.push(() => {
-		let i = 0;
-		const emitNext = () => {
-			const word = words[i];
-			if (i === 0 && !hasSentFirstToken) {
-				hasSentFirstToken = true;
-				currentItem?.onFirstToken?.();
-			}
-			llmBus.emit("token", word);
-			i++;
-			if (i < words.length) {
-				const delay =
-					MIN_WORD_DELAY + Math.random() * (MAX_WORD_DELAY - MIN_WORD_DELAY);
-				setTimeout(emitNext, delay);
-			} else {
-				wordQueueSize--;
-				llmBus.emit("flush");
-				if (wordQueueSize === 0 && pendingDoneText !== null) {
-					llmBus.emit("done", pendingDoneText);
-					pendingDoneText = null;
-				}
-				isProcessingWords = false;
-				processWordEmitQueue();
-			}
-		};
-		emitNext();
-	});
-	processWordEmitQueue();
-}
-
-async function sapphireRequest(item: QueueItem): Promise<void> {
+async function sapphireStream(item: QueueItem): Promise<string> {
 	const resp = await fetch(`${SAPPHIRE_BASE}/v1/respond`, {
 		method: "POST",
 		headers: { "Content-Type": "application/json" },
@@ -86,17 +33,51 @@ async function sapphireRequest(item: QueueItem): Promise<void> {
 			username: item.userMessage.username,
 			text: item.userMessage.text,
 			session_id: item.userMessage.sessionId ?? "default",
+			stream: true,
 		}),
 	});
 	if (!resp.ok) {
 		const errText = await resp.text().catch(() => "");
 		throw new Error(`sapphire error ${resp.status}: ${errText.slice(0, 200)}`);
 	}
-	const data = (await resp.json()) as { text: string };
-	const text = data.text;
-	emitWordTokens(text);
-	currentItem?.onChunk?.(text);
-	signalDone(text);
+
+	const reader = resp.body?.getReader();
+	if (!reader) throw new Error("no response body");
+
+	const decoder = new TextDecoder();
+	let buffer = "";
+	let fullText = "";
+
+	while (true) {
+		const { done, value } = await reader.read();
+		if (done) break;
+		buffer += decoder.decode(value, { stream: true });
+		const lines = buffer.split("\n");
+		buffer = lines.pop() ?? "";
+
+		for (const line of lines) {
+			const trimmed = line.trim();
+			if (!trimmed.startsWith("data: ")) continue;
+			const payload = trimmed.slice(6);
+			if (payload === "[DONE]") return fullText;
+			if (payload.startsWith("{")) {
+				try {
+					const meta = JSON.parse(payload) as { text: string };
+					return meta.text;
+				} catch {
+					// not metadata
+				}
+			}
+			if (!hasSentFirstToken) {
+				hasSentFirstToken = true;
+				currentItem?.onFirstToken?.();
+			}
+			fullText += payload;
+			llmBus.emit("token", payload);
+			currentItem?.onChunk?.(payload);
+		}
+	}
+	return fullText;
 }
 
 function processQueue(): void {
@@ -110,10 +91,6 @@ function processQueue(): void {
 	}
 	currentItem = item;
 	hasSentFirstToken = false;
-	wordEmitQueue.length = 0;
-	isProcessingWords = false;
-	wordQueueSize = 0;
-	pendingDoneText = null;
 
 	const finish = (text: string) => {
 		currentItem = null;
@@ -136,13 +113,17 @@ function processQueue(): void {
 	currentDoneHandler = doneHandler;
 	llmBus.on("done", doneHandler);
 
-	void sapphireRequest(item).catch((err) => {
-		if (currentDoneHandler) {
-			llmBus.off("done", currentDoneHandler);
-			currentDoneHandler = null;
-		}
-		fail(err);
-	});
+	void sapphireStream(item)
+		.then((text) => {
+			llmBus.emit("done", text);
+		})
+		.catch((err) => {
+			if (currentDoneHandler) {
+				llmBus.off("done", currentDoneHandler);
+				currentDoneHandler = null;
+			}
+			fail(err);
+		});
 }
 
 export function askLLM(
