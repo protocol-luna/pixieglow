@@ -1,77 +1,44 @@
 # Pixieglow
 
-Matrix bot adapter for Protocol Luna.
+Pixieglow is the Matrix adapter for the Luna Protocol ecosystem. It acts as a thin WebSocket client of **Emerald** (the brain service), forwarding Matrix messages and executing response commands.
 
-Thin client that connects Matrix (tuwunel) to the **Emerald** brain service. Send events, execute commands, no behavior logic.
+> **Architecture**: `Matrix → Pixieglow → WebSocket → Emerald`
 
-```
-Matrix API ←→ Pixieglow (custom MatrixClient)
-                  │ WebSocket
-                  ▼
-              Emerald (brain)
-                  │
-                  ▼
-              Sapphire (LLM gateway) → Krystal (llama.cpp)
-```
+## How It Works
+
+1. Pixieglow connects to Emerald via WebSocket on port 3126
+2. Pixieglow listens to Matrix room messages via the Matrix client-server API (sync loop) and forwards them to Emerald as `MessageEvent`s
+3. Emerald processes the message, calls Sapphire, and sends a `RespondCommand` back
+4. Pixieglow extracts `responseText` from the command and sends it to the Matrix room
+5. Pixieglow handles typing indicators via `TypingCommand`
 
 ## Features
 
-- **Matrix client** — custom HTTP client for sync, send, reactions, upload
-- **Auto-join** — accepts invites, tracks rooms and members
-- **Emerald client** — WebSocket connection to the brain (auto-reconnect)
-- **Sapphire client** — SSE streaming LLM calls
-
-All behavior decisions (triggers, delays, reactions, burst, hesitation, sleep, fatigue, sessions) are handled by [Emerald](https://github.com/protocol-luna/emerald).
-
-## Setup
-
-```bash
-git clone https://github.com/protocol-luna/pixieglow
-cd pixieglow
-bun install
-cp config.example.yml config.yml
-# edit config.yml with your Matrix token
-bun run build && bun start
-```
+- **Emerald WebSocket client** — Thin adapter, all LLM logic delegated to Emerald
+- **Matrix sync loop** — Polls the Matrix API for new messages
+- **Multi-room** — Responds to all rooms the bot is in
 
 ## Configuration
 
-See `config.example.yml`. Only platform connectivity:
+Copy `config.example.yml` to `config.yml`:
 
-- `matrix_homeserver` — Matrix homeserver URL
-- `matrix_token` — Matrix access token
-- `matrix_username` / `bot_server` — Bot identity
-- `sapphire_host` / `sapphire_port` — Sapphire gateway
-- `emerald_host` / `emerald_port` — Emerald brain (WebSocket)
-
-All behavior configuration is in [Emerald's `config.yml`](https://github.com/protocol-luna/emerald).
-
-## Architecture
-
-```
-src/
-├── bot/
-│   └── matrix-bot.ts     # Sync loop + command executor (thin)
-├── core/
-│   ├── llm-core.ts       # Sapphire HTTP client (SSE streaming)
-│   ├── llm-bus.ts        # Token event bus
-│   └── emerald-client.ts # WebSocket client to Emerald
-├── matrix/
-│   └── client.ts         # Matrix HTTP client
-├── behavior/             # (legacy, unused — logic moved to Emerald)
-├── state/                # (legacy, unused — logic moved to Emerald)
-├── config.ts             # Platform config only
-├── cli.ts                # CLI entry point
-└── index.ts              # Entry point
+```yaml
+matrix:
+  homeserver_url: "https://matrix.fox3000foxy.com"
+  access_token: "your_matrix_access_token"
+emerald_host: "localhost"
+emerald_port: 3126
 ```
 
-## Related
+## Running
 
-- [emerald](https://github.com/protocol-luna/emerald) — Brain service (this bot is a client of it)
-- [sapphire](https://github.com/protocol-luna/sapphire) — LLM gateway
-- [krystal](https://github.com/protocol-luna/krystal) — LLM inference server
-- [jade](https://github.com/protocol-luna/jade) — Discord adapter (sibling bot)
+```bash
+# Install
+npm install
 
-## License
+# Development
+npm run dev
 
-MIT
+# Production (PM2)
+npm run start
+```
