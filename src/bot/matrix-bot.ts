@@ -60,7 +60,12 @@ function drainSessionQueue(
 	queued: { body: string; sender: string; reason: string; eventId: string }[],
 ): void {
 	if (queued.length === 0) return;
-	const next = queued.shift() as { body: string; sender: string; reason: string; eventId: string };
+	const next = queued.shift() as {
+		body: string;
+		sender: string;
+		reason: string;
+		eventId: string;
+	};
 	console.log(
 		`[bot] session queue: resuming queued message in ${roomId.slice(0, 8)}`,
 	);
@@ -97,7 +102,12 @@ function drainPendingForRoom(
 ): { body: string; sender: string; reason: string; eventId: string } | null {
 	const q = roomPending.get(roomId);
 	if (q && q.length > 0) {
-		const next = q.shift() as { body: string; sender: string; reason: string; eventId: string };
+		const next = q.shift() as {
+			body: string;
+			sender: string;
+			reason: string;
+			eventId: string;
+		};
 		if (q.length === 0) roomPending.delete(roomId);
 		return next;
 	}
@@ -610,9 +620,14 @@ async function runSyncLoop(initialSince?: string): Promise<void> {
 			if (sync.rooms?.invite) {
 				for (const roomId of Object.keys(sync.rooms.invite)) {
 					if (!client.joinedRooms.has(roomId)) {
-						console.log(`[sync] auto-joining invited room ${roomId.slice(0, 8)}`);
+						console.log(
+							`[sync] auto-joining invited room ${roomId.slice(0, 8)}`,
+						);
 						await client.joinRoom(roomId).catch((err) => {
-							console.error(`[sync] failed to join ${roomId.slice(0, 8)}:`, err);
+							console.error(
+								`[sync] failed to join ${roomId.slice(0, 8)}:`,
+								err,
+							);
 						});
 						// Fetch members and add to joinedRooms after join
 						const members = await client.getRoomMembers(roomId).catch(() => []);
@@ -664,9 +679,11 @@ export async function startBot(): Promise<void> {
 	if (initialSync.rooms?.invite) {
 		for (const roomId of Object.keys(initialSync.rooms.invite)) {
 			console.log(`[bot] auto-joining invited room ${roomId.slice(0, 8)}`);
-			await client.joinRoom(roomId).catch((err) =>
-				console.error(`[bot] failed to join ${roomId.slice(0, 8)}:`, err),
-			);
+			await client
+				.joinRoom(roomId)
+				.catch((err) =>
+					console.error(`[bot] failed to join ${roomId.slice(0, 8)}:`, err),
+				);
 			await joinRoomAndTrack(roomId);
 		}
 	}

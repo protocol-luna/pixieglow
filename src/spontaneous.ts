@@ -1,6 +1,5 @@
 import { config } from "./config.js";
-import { isLLMBusy } from "./core/llm-client.js";
-import { askLLM, resetLLM } from "./core/llm-core.js";
+import { askLLM, isLLMBusy, resetLLM } from "./core/llm-core.js";
 import type { JoinedRoom, MatrixClient } from "./matrix/client.js";
 import { markBotActivity } from "./state/state.js";
 

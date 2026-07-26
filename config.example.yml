@@ -1,11 +1,6 @@
 # Configuration du bot Matrix pixieglow
 # Basé sur Luna Protocol, adapté pour Matrix (tuwunel)
 
-# --- System prompt ---
-system_prompt: |
-  Your name is pixieglow. You are a 21-year-old girl studying art.
-  Talk naturally and never prefix your replies with your name.
-
 # --- Matrix connection (obligatoire) ---
 # URL du homeserver Matrix (tuwunel) :
 matrix_homeserver: "https://luna.fox3000foxy.com"
@@ -16,35 +11,9 @@ matrix_username: "pixieglow"
 # Server name (partie après le :) :
 bot_server: "protocol-luna.github.io"
 
-# --- Few-shot priming ---
-few_shot_enabled: true
-
-few_shot_examples:
-  - user: "yo whats good"
-    assistant: "nm just chillin, u"
-  - user: "bored af"
-    assistant: "lol same energy fr"
-  - user: "hey how are you"
-    assistant: "im doing pretty good tbh, just vibing"
-  - user: "whats up"
-    assistant: "yooo not much, what about you"
-  - user: "how was your day"
-    assistant: "it was alright, nothing crazy happened lol"
-
-# --- Sampling ---
-mirostat_enabled: true
-mirostat_mode: 2
-mirostat_lr: 0.1
-mirostat_ent: 5.0
-
-# --- LLM ---
-# Sapphire est le point d'entrée unique pour tous les bots.
-# Il classifie chaque message et route vers la bonne instance Krystal.
-llm_host: "localhost"
-llm_port: 3123
-llm_server_key: ""
-llm_session_ttl: 10
-llm_mode: "direct"
+# --- Sapphire (LLM gateway) ---
+sapphire_host: "localhost"
+sapphire_port: 3123
 
 # --- Triggers ---
 names:

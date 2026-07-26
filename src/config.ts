@@ -77,102 +77,14 @@ export const BOT_SERVER: string =
 	process.env.BOT_SERVER ??
 	"protocol-luna.github.io";
 
-export const LLM_HOST: string =
-	v<string | null>("llm_host", null) ?? process.env.LLM_HOST ?? "localhost";
+export const SAPPHIRE_HOST: string =
+	v<string | null>("sapphire_host", null) ??
+	process.env.SAPPHIRE_HOST ??
+	"localhost";
 
-export const LLM_PORT: number =
-	v<number | null>("llm_port", null) ??
-	Number.parseInt(process.env.LLM_PORT ?? "3124", 10);
-
-export type LLMMode = "direct" | "online";
-
-export const LLM_MODE: LLMMode =
-	(process.env.LLM_MODE as LLMMode | undefined) ?? "direct";
-
-export const LLM_API_ENDPOINT: string =
-	v<string | null>("llm_api_endpoint", null) ??
-	process.env.LLM_API_ENDPOINT ??
-	"";
-
-export const LLM_API_TOKEN: string =
-	v<string | null>("llm_api_token", null) ?? process.env.LLM_API_TOKEN ?? "";
-
-export const LLM_SERVER_KEY: string =
-	v<string | null>("llm_server_key", null) ?? process.env.LLM_SERVER_KEY ?? "";
-
-export const LLM_MODEL: string =
-	v<string | null>("llm_model", null) ?? process.env.LLM_MODEL ?? "gpt-4o-mini";
-
-export const LLM_SESSION_TTL: number =
-	v<number | null>("llm_session_ttl", null) ?? 10;
-
-export const LLM_N_SLOTS: number =
-	v<number | null>("llm_n_slots", null) ??
-	Number.parseInt(process.env.LLM_N_SLOTS ?? "1", 10);
-
-export const SYSTEM_PROMPT = (() => {
-	const fromYaml = v<string | null>("system_prompt", null);
-	if (fromYaml) return fromYaml;
-	const promptPath = join(ROOT, "prompt.txt");
-	try {
-		return readFileSync(promptPath, "utf-8").trim();
-	} catch {
-		return "Your name is Pixieglow. You are playful 21 year old girl";
-	}
-})();
-
-export const jinjaTemplate =
-	"{% for message in messages %}{{'<|im_start|>' + message['role']}}{% if message['name'] %}{{' name=' + message['name']}}{% endif %}{{'\\n' + message['content'] + '<|im_end|>\n'}}{% endfor %}{% if add_generation_prompt %}{{'<|im_start|>assistant\\n'}}{% endif %}";
-
-export interface FewShotExample {
-	user: string;
-	assistant: string;
-}
-
-export const FEW_SHOT_ENABLED: boolean =
-	v<boolean | null>("few_shot_enabled", null) ?? true;
-
-export const FEW_SHOT_EXAMPLES: FewShotExample[] = v<FewShotExample[] | null>(
-	"few_shot_examples",
-	null,
-) ?? [
-	{ user: "yo whats good", assistant: "nm just chillin, u" },
-	{ user: "bored af", assistant: "lol same energy fr" },
-	{
-		user: "hey how are you",
-		assistant: "im doing pretty good tbh, just vibing",
-	},
-	{ user: "whats up", assistant: "yooo not much, what about you" },
-	{
-		user: "how was your day",
-		assistant: "it was alright, nothing crazy happened lol",
-	},
-];
-
-export const MIROSTAT_ENABLED: boolean =
-	v<boolean | null>("mirostat_enabled", null) ?? true;
-export const MIROSTAT_MODE: 1 | 2 =
-	(v<number | null>("mirostat_mode", null) as 1 | 2 | null) ?? 2;
-export const MIROSTAT_LR: number = v<number | null>("mirostat_lr", null) ?? 0.1;
-export const MIROSTAT_ENT: number =
-	v<number | null>("mirostat_ent", null) ?? 5.0;
-
-export const ttsModelPath: string =
-	v<string | null>("tts_model_path", null) ??
-	process.env.TTS_MODEL_PATH ??
-	join(ROOT, "tts-engine/en_GB-southern_english_female-low.onnx");
-export const ttsBinaryPath: string =
-	v<string | null>("tts_binary_path", null) ??
-	process.env.TTS_BINARY_PATH ??
-	join(ROOT, "bin/piper/piper");
-export const ffmpegPath: string =
-	v<string | null>("ffmpeg_path", null) ??
-	process.env.FFMPEG_PATH ??
-	join(ROOT, "bin/ffmpeg/ffmpeg");
-export const ffprobePath: string =
-	v<string | null>("ffprobe_path", null) ??
-	process.env.FFPROBE_PATH ??
-	join(ROOT, "bin/ffmpeg/ffprobe");
+export const SAPPHIRE_PORT: number =
+	v<number | null>("sapphire_port", null) ??
+	Number.parseInt(process.env.SAPPHIRE_PORT ?? "3123", 10);
 
 export interface ConcentrationEntry {
 	delay_min: number;

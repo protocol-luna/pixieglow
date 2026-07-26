@@ -1,4 +1,4 @@
-import { LLM_MODE } from "../config.js";
+import { SAPPHIRE_HOST, SAPPHIRE_PORT } from "../config.js";
 import { llmBus } from "./llm-bus.js";
 
 export interface UserMessage {
@@ -30,6 +30,8 @@ let wordQueueSize = 0;
 let pendingDoneText: string | null = null;
 
 let currentDoneHandler: ((text: string) => void) | null = null;
+
+const SAPPHIRE_BASE = `http://${SAPPHIRE_HOST}:${SAPPHIRE_PORT}`;
 
 function processWordEmitQueue(): void {
 	if (isProcessingWords || wordEmitQueue.length === 0) return;
@@ -76,37 +78,24 @@ function emitWordTokens(chunk: string): void {
 	processWordEmitQueue();
 }
 
-async function proxyRequest(item: QueueItem): Promise<void> {
-	const { askLLM: askLLMClient } = await import("./llm-client.js");
-	const text = await askLLMClient(item.userMessage, {
-		onFirstToken: () => {
-			if (!hasSentFirstToken) {
-				hasSentFirstToken = true;
-				currentItem?.onFirstToken?.();
-			}
-		},
-		onChunk: (chunk: string) => {
-			emitWordTokens(chunk);
-			currentItem?.onChunk?.(chunk);
-		},
+async function sapphireRequest(item: QueueItem): Promise<void> {
+	const resp = await fetch(`${SAPPHIRE_BASE}/v1/respond`, {
+		method: "POST",
+		headers: { "Content-Type": "application/json" },
+		body: JSON.stringify({
+			username: item.userMessage.username,
+			text: item.userMessage.text,
+			session_id: item.userMessage.sessionId ?? "default",
+		}),
 	});
-	signalDone(text);
-}
-
-async function onlineRequest(item: QueueItem): Promise<void> {
-	const { askOnline } = await import("./llm-online.js");
-	const text = await askOnline(item.userMessage, {
-		onFirstToken: () => {
-			if (!hasSentFirstToken) {
-				hasSentFirstToken = true;
-				currentItem?.onFirstToken?.();
-			}
-		},
-		onChunk: (chunk: string) => {
-			emitWordTokens(chunk);
-			currentItem?.onChunk?.(chunk);
-		},
-	});
+	if (!resp.ok) {
+		const errText = await resp.text().catch(() => "");
+		throw new Error(`sapphire error ${resp.status}: ${errText.slice(0, 200)}`);
+	}
+	const data = (await resp.json()) as { text: string };
+	const text = data.text;
+	emitWordTokens(text);
+	currentItem?.onChunk?.(text);
 	signalDone(text);
 }
 
@@ -147,25 +136,13 @@ function processQueue(): void {
 	currentDoneHandler = doneHandler;
 	llmBus.on("done", doneHandler);
 
-	if (LLM_MODE === "direct") {
-		void proxyRequest(item).catch((err) => {
-			if (currentDoneHandler) {
-				llmBus.off("done", currentDoneHandler);
-				currentDoneHandler = null;
-			}
-			fail(err);
-		});
-	} else if (LLM_MODE === "online") {
-		void onlineRequest(item).catch((err) => {
-			if (currentDoneHandler) {
-				llmBus.off("done", currentDoneHandler);
-				currentDoneHandler = null;
-			}
-			fail(err);
-		});
-	} else {
-		fail(new Error(`Unknown LLM mode: ${LLM_MODE}`));
-	}
+	void sapphireRequest(item).catch((err) => {
+		if (currentDoneHandler) {
+			llmBus.off("done", currentDoneHandler);
+			currentDoneHandler = null;
+		}
+		fail(err);
+	});
 }
 
 export function askLLM(
@@ -198,12 +175,13 @@ export async function resetLLM(sessionId?: string): Promise<void> {
 		currentDoneHandler = null;
 	}
 	llmBus.emit("reset");
-	if (LLM_MODE === "online") {
-		const { clearConversations } = await import("./llm-online.js");
-		if (sessionId) clearConversations(sessionId);
-		else clearConversations();
-		return;
+	try {
+		await fetch(`${SAPPHIRE_BASE}/v1/reset`, {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({ session_id: sessionId ?? null }),
+		});
+	} catch {
+		/* best effort */
 	}
-	const { resetLLM: resetLLMClient } = await import("./llm-client.js");
-	await resetLLMClient(sessionId);
 }
