@@ -57,16 +57,26 @@ export type ReplyStyle = {
 	mentionRepliedUser: boolean;
 };
 
+export type TypoCorrection = {
+	originalWord: string;
+	correctedWord: string;
+	delay: number;
+	style: "edit" | "message" | "mixed";
+};
+
 export type RespondCommand = {
 	type: "respond";
 	id: string;
 	channel: string;
 	text: string;
+	responseText: string;
 	delay: number;
 	replyTo?: string;
 	replyStyle: ReplyStyle;
 	hesitationWord?: string;
 	burstPlan?: BurstPlan;
+	typoCorrection?: TypoCorrection;
+	letterSwap?: { original: string; corrected: string; delay: number };
 	react?: ReactionPlan;
 	sessionId?: string;
 };

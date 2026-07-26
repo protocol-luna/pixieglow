@@ -1,4 +1,3 @@
-import { applyTypo } from "../behavior/typo.js";
 import {
 	BOT_SERVER,
 	EMERALD_HOST,
@@ -11,8 +10,6 @@ import {
 	type RespondCommand,
 	type SetPresenceCommand,
 } from "../core/emerald-client.js";
-import { llmBus } from "../core/llm-bus.js";
-import { askLLM } from "../core/llm-core.js";
 import { MatrixClient } from "../matrix/client.js";
 
 const botId = `@${MATRIX_USERNAME}:${BOT_SERVER}`;
@@ -41,10 +38,6 @@ function startTyping(roomId: string) {
 	);
 }
 
-function stripLlmPrefix(text: string): string {
-	return text.replace(/^[^:]+:\s*/, "");
-}
-
 function _stripMention(text: string): string {
 	const localpart = botId.split(":")[0];
 	const name = localpart.replace("@", "");
@@ -58,14 +51,13 @@ function _stripMention(text: string): string {
 async function executeRespond(cmd: RespondCommand): Promise<void> {
 	const {
 		channel: roomId,
-		text: prompt,
 		delay,
 		replyTo,
 		replyStyle,
+		responseText,
 		hesitationWord,
 		burstPlan,
 		react,
-		sessionId,
 	} = cmd;
 
 	await new Promise((r) => setTimeout(r, delay));
@@ -80,86 +72,58 @@ async function executeRespond(cmd: RespondCommand): Promise<void> {
 
 	startTyping(roomId);
 
-	const chunks: string[] = [];
+	const text = responseText;
+	if (!text) return;
+
+	const parts = burstPlan ? splitBurst(text, burstPlan.fragmentCount) : [text];
+
 	let currentHesitation = hesitationWord ?? "";
+	let _firstMsgId: string | null = null;
+	let accDelay = 0;
 
-	const onToken = (word: string) => {
-		chunks.push(word);
-	};
-	llmBus.on("token", onToken);
+	for (let i = 0; i < parts.length; i++) {
+		const frag = parts[i];
+		if (!frag) continue;
 
-	try {
-		const fullText = await askLLM({
-			username: "User",
-			text: prompt,
-			sessionId: sessionId ?? roomId,
-		});
-
-		const text = stripLlmPrefix(fullText);
-		if (!text) return;
-
-		let textToSend = text;
-
-		if (chunks.length > 0 && Math.random() < 0.06) {
-			const idx = Math.floor(Math.random() * chunks.length);
-			const result = applyTypo(chunks[idx], "azerty");
-			if (result && text.includes(result.originalWord)) {
-				textToSend = text.replace(result.originalWord, result.correctedWord);
-			}
+		let content = frag;
+		if (i === 0 && currentHesitation) {
+			content = `${currentHesitation} ${frag}`;
+			currentHesitation = "";
 		}
 
-		const parts = burstPlan
-			? splitBurst(textToSend, burstPlan.fragmentCount)
-			: [textToSend];
-
-		let _firstMsgId: string | null = null;
-		let accDelay = 0;
-
-		for (let i = 0; i < parts.length; i++) {
-			const frag = parts[i];
-			if (!frag) continue;
-
-			let content = frag;
-			if (i === 0 && currentHesitation) {
-				content = `${currentHesitation} ${frag}`;
-				currentHesitation = "";
-			}
-
-			if (i === 0) {
-				_firstMsgId = await client
-					.sendText(
-						roomId,
-						content,
-						replyStyle.messageReference ? replyTo : undefined,
-					)
-					.catch(() => null);
-				emerald.sendEvent({
-					type: "bot_message",
-					client: "pixieglow",
-					channel: roomId,
-					text: content,
-					timestamp: Date.now(),
-				});
-			} else {
-				accDelay += burstPlan?.fragmentDelays[i - 1] ?? 2000;
-				setTimeout(async () => {
-					const sent = await client.sendText(roomId, content).catch(() => null);
-					if (sent) {
-						emerald.sendEvent({
-							type: "bot_message",
-							client: "pixieglow",
-							channel: roomId,
-							text: content,
-							timestamp: Date.now(),
-						});
-					}
-				}, accDelay);
-			}
+		if (i === 0) {
+			_firstMsgId = await client
+				.sendText(
+					roomId,
+					content,
+					replyStyle.messageReference ? replyTo : undefined,
+				)
+				.catch(() => null);
+			emerald.sendEvent({
+				type: "bot_message",
+				client: "pixieglow",
+				channel: roomId,
+				text: content,
+				timestamp: Date.now(),
+			});
+		} else {
+			accDelay += burstPlan?.fragmentDelays[i - 1] ?? 2000;
+			setTimeout(async () => {
+				const sent = await client.sendText(roomId, content).catch(() => null);
+				if (sent) {
+					emerald.sendEvent({
+						type: "bot_message",
+						client: "pixieglow",
+						channel: roomId,
+						text: content,
+						timestamp: Date.now(),
+					});
+				}
+			}, accDelay);
 		}
-	} finally {
-		clearTypingTimer(roomId);
-		llmBus.off("token", onToken);
 	}
+
+	clearTypingTimer(roomId);
 }
 
 function splitBurst(text: string, nFrags: number): string[] {
@@ -180,7 +144,13 @@ function splitBurst(text: string, nFrags: number): string[] {
 }
 
 function handleSetPresence(cmd: SetPresenceCommand) {
-	void client.updatePresence(cmd.status);
+	const map: Record<string, "online" | "offline" | "unavailable"> = {
+		online: "online",
+		idle: "unavailable",
+		dnd: "online",
+		invisible: "offline",
+	};
+	void client.updatePresence(map[cmd.status] ?? "online");
 }
 
 function handleCommand(command: OutCommand) {
@@ -201,30 +171,8 @@ function handleCommand(command: OutCommand) {
 	}
 }
 
-async function handleSpontaneous(roomId: string, sessionId: string) {
-	startTyping(roomId);
-	try {
-		const text = await askLLM({
-			username: "System",
-			text: "",
-			sessionId,
-		});
-		const clean = stripLlmPrefix(text);
-		if (clean) {
-			const _sent = await client.sendText(roomId, clean);
-			emerald.sendEvent({
-				type: "bot_message",
-				client: "pixieglow",
-				channel: roomId,
-				text: clean,
-				timestamp: Date.now(),
-			});
-		}
-	} catch (err) {
-		console.error("[bot] spontaneous error:", err);
-	} finally {
-		clearTypingTimer(roomId);
-	}
+async function handleSpontaneous(_roomId: string, _sessionId: string) {
+	console.log("[bot] spontaneous not yet wired through Emerald");
 }
 
 function getRoomDisplayName(roomId: string): string {

@@ -42,15 +42,6 @@ export const BOT_SERVER: string =
 	process.env.BOT_SERVER ??
 	"protocol-luna.github.io";
 
-export const SAPPHIRE_HOST: string =
-	v<string | null>("sapphire_host", null) ??
-	process.env.SAPPHIRE_HOST ??
-	"localhost";
-
-export const SAPPHIRE_PORT: number =
-	v<number | null>("sapphire_port", null) ??
-	Number.parseInt(process.env.SAPPHIRE_PORT ?? "3123", 10);
-
 export const EMERALD_HOST: string =
 	v<string | null>("emerald_host", null) ??
 	process.env.EMERALD_HOST ??

@@ -2,7 +2,5 @@ matrix_homeserver: "https://matrix.exemple.com"
 matrix_token: "ton_token_ici"
 matrix_username: "pixieglow"
 bot_server: "exemple.com"
-sapphire_host: "localhost"
-sapphire_port: 3123
 emerald_host: "127.0.0.1"
 emerald_port: 3126

@@ -16,10 +16,11 @@
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.0",
+    "@types/bun": "latest",
     "@types/js-yaml": "^4.0.9",
     "@types/node": "^25.9.3",
-    "typescript": "^5.8.0",
-    "@types/bun": "latest"
+    "@types/ws": "^8.18.1",
+    "typescript": "^5.8.0"
   },
   "module": "src/index.ts",
   "private": true
