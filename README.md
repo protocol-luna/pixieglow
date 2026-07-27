@@ -14,9 +14,9 @@ Pixieglow is the Matrix adapter for the Luna Protocol ecosystem. It acts as a th
 
 ## Features
 
-- **Emerald WebSocket client** — Thin adapter, all LLM logic delegated to Emerald
-- **Matrix sync loop** — Polls the Matrix API for new messages
-- **Multi-room** — Responds to all rooms the bot is in
+- **Emerald WebSocket client** -- Thin adapter, all LLM logic delegated to Emerald
+- **Matrix sync loop** -- Polls the Matrix API for new messages
+- **Multi-room** -- Responds to all rooms the bot is in
 
 ## Configuration
 
