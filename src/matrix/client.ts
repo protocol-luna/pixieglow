@@ -179,6 +179,34 @@ export class MatrixClient {
 		).catch(() => {});
 	}
 
+	async editMessage(
+		roomId: string,
+		eventId: string,
+		newBody: string,
+	): Promise<void> {
+		this.txnCounter++;
+		const txnId = `pixie_${Date.now()}_${this.txnCounter}`;
+		await fetch(
+			`${BASE}/_matrix/client/v3/rooms/${encodeURIComponent(roomId)}/send/m.room.message/${txnId}`,
+			{
+				method: "PUT",
+				headers,
+				body: JSON.stringify({
+					body: ` * ${newBody}`,
+					msgtype: "m.text",
+					"m.new_content": {
+						body: newBody,
+						msgtype: "m.text",
+					},
+					"m.relates_to": {
+						rel_type: "m.replace",
+						event_id: eventId,
+					},
+				}),
+			},
+		).catch(() => {});
+	}
+
 	async setTyping(roomId: string, timeout = 15000): Promise<void> {
 		await fetch(
 			`${BASE}/_matrix/client/v3/rooms/${encodeURIComponent(roomId)}/typing/${encodeURIComponent(this.userId)}`,

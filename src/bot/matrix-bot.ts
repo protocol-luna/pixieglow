@@ -58,6 +58,8 @@ async function executeRespond(cmd: RespondCommand): Promise<void> {
 		hesitationWord,
 		burstPlan,
 		react,
+		typoCorrection,
+		letterSwap,
 	} = cmd;
 
 	await new Promise((r) => setTimeout(r, delay));
@@ -121,6 +123,25 @@ async function executeRespond(cmd: RespondCommand): Promise<void> {
 				}
 			}, accDelay);
 		}
+	}
+
+	if (typoCorrection || letterSwap) {
+		const correction = (typoCorrection ?? letterSwap)!;
+		const sentText = hesitationWord
+			? `${hesitationWord} ${parts[0]}`
+			: parts[0];
+		setTimeout(async () => {
+			try {
+				const correctedText = typoCorrection
+					? sentText.replace(typoCorrection.correctedWord, typoCorrection.originalWord)
+					: sentText.replace(letterSwap!.corrected, letterSwap!.original);
+				if (correctedText !== sentText && _firstMsgId) {
+					await client.editMessage(roomId, _firstMsgId, correctedText);
+				}
+			} catch (err) {
+				console.error("[bot] edit failed:", err);
+			}
+		}, correction.delay);
 	}
 
 	clearTypingTimer(roomId);
