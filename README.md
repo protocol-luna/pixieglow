@@ -27,11 +27,11 @@
 Pixieglow is a thin WebSocket client of **Emerald** (the brain service), forwarding Matrix messages and executing response commands. It is the Matrix counterpart of **Jade** (the Discord adapter).
 
 ```mermaid
-graph LR
-    Matrix["Matrix"] --> Pixieglow["Pixieglow<br/><strong>Matrix Adapter</strong>"]
-    Pixieglow -- "WebSocket :3126" --> Emerald["Emerald<br/>Brain"]
-    Emerald --> Sapphire["Sapphire<br/>LLM Gateway"]
-    Sapphire --> Krystal["Krystal<br/>llama.cpp"]
+flowchart LR
+    Matrix["Matrix"] --> Pixieglow["Pixieglow (Matrix Adapter)"]
+    Pixieglow -- ":3126 WS" --> Emerald["Emerald (Brain)"]
+    Emerald --> Sapphire["Sapphire (LLM Gateway)"]
+    Sapphire --> Krystal["Krystal (llama.cpp)"]
 ```
 
 ## How It Works
