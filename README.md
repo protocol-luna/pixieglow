@@ -1,8 +1,38 @@
-# Pixieglow
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="images/logo.png">
+    <img src="images/logo.png" alt="Pixieglow" width="200" style="border-radius: 20px;">
+  </picture>
+  <h1 align="center">Pixieglow</h1>
+  <p align="center">Matrix adapter for the Luna Protocol ecosystem</p>
+  <p align="center">
+    <a href="https://github.com/protocol-luna/pixieglow/blob/main/LICENSE">
+      <img src="https://img.shields.io/badge/license-MIT-blue?style=flat-square" alt="License">
+    </a>
+    <a href="https://www.typescriptlang.org/">
+      <img src="https://img.shields.io/badge/language-TypeScript-3178C6?style=flat-square" alt="Language">
+    </a>
+    <a href="https://matrix.org/">
+      <img src="https://img.shields.io/badge/platform-Matrix-000000?style=flat-square" alt="Matrix">
+    </a>
+    <a href="https://bun.sh/">
+      <img src="https://img.shields.io/badge/runtime-Bun-F9F9F9?style=flat-square" alt="Bun">
+    </a>
+    <a href="https://github.com/protocol-luna">
+      <img src="https://img.shields.io/badge/part%20of-Luna%20Protocol-9370DB?style=flat-square" alt="Luna Protocol">
+    </a>
+  </p>
+</p>
 
-Pixieglow is the Matrix adapter for the Luna Protocol ecosystem. It acts as a thin WebSocket client of **Emerald** (the brain service), forwarding Matrix messages and executing response commands.
+Pixieglow acts as a thin WebSocket client of **Emerald** (the brain service), forwarding Matrix messages and executing response commands.
 
-> **Architecture**: `Matrix → Pixieglow → WebSocket → Emerald`
+```mermaid
+graph LR
+    Matrix["Matrix"] --> Pixieglow["Pixieglow<br/><strong>Matrix Adapter</strong>"]
+    Pixieglow -- "WebSocket :3126" --> Emerald["Emerald<br/>Brain"]
+    Emerald --> Sapphire["Sapphire<br/>LLM Gateway"]
+    Sapphire --> Krystal["Krystal<br/>llama.cpp"]
+```
 
 ## How It Works
 
@@ -14,9 +44,9 @@ Pixieglow is the Matrix adapter for the Luna Protocol ecosystem. It acts as a th
 
 ## Features
 
-- **Emerald WebSocket client** -- Thin adapter, all LLM logic delegated to Emerald
-- **Matrix sync loop** -- Polls the Matrix API for new messages
-- **Multi-room** -- Responds to all rooms the bot is in
+- **Emerald WebSocket client** — Thin adapter, all LLM logic delegated to Emerald
+- **Matrix sync loop** — Polls the Matrix API for new messages
+- **Multi-room** — Responds to all rooms the bot is in
 
 ## Configuration
 
@@ -34,11 +64,11 @@ emerald_port: 3126
 
 ```bash
 # Install
-npm install
+bun install
 
 # Development
-npm run dev
+bun run dev
 
 # Production (PM2)
-npm run start
+bun run start
 ```
