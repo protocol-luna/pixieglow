@@ -65,6 +65,40 @@ export type TypoCorrection = {
 	style: "edit" | "message" | "mixed";
 };
 
+export type BehaviorDebug = {
+	typoChance: number;
+	typoApplied: boolean;
+	swapChance: number;
+	swapApplied: boolean;
+	burstChance: number;
+	burstApplied: boolean;
+	hesitationChance: number;
+	hesitationApplied: boolean;
+	forgetChance: number;
+	voiceChance: number;
+	voiceApplied: boolean;
+	sleepMode: string | null;
+	fatigueMultiplier: number;
+};
+
+export type DebugStats = {
+	promptTokens: number;
+	completionTokens: number;
+	timeMs: number;
+	tokensPerSecond: number;
+	emotionStateValence: number;
+	emotionStateArousal: number;
+	classificationLabel: string;
+	classificationConfidence: number;
+	messageValence: number;
+	messageArousal: number;
+	triggerReason: string;
+	delay: number;
+	usedRuby: boolean;
+	inactivityMs: number;
+	behavior?: BehaviorDebug;
+};
+
 export type RespondCommand = {
 	type: "respond";
 	id: string;
@@ -80,6 +114,7 @@ export type RespondCommand = {
 	letterSwap?: { original: string; corrected: string; delay: number };
 	react?: ReactionPlan;
 	sessionId?: string;
+	debugStats?: DebugStats;
 };
 
 export type TypingCommand = {

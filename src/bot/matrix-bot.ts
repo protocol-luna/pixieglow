@@ -6,6 +6,7 @@ import {
 } from "../config.js";
 import {
 	EmeraldClient,
+	type DebugStats,
 	type OutCommand,
 	type RespondCommand,
 	type SetPresenceCommand,
@@ -48,6 +49,31 @@ function _stripMention(text: string): string {
 		.trim();
 }
 
+function formatDebugLines(stats: DebugStats): string {
+	const tps = stats.tokensPerSecond.toFixed(1);
+	const rubyIcon = stats.usedRuby ? "💎" : "🧠";
+	const lines = [
+		`${rubyIcon} ${stats.completionTokens} tok · ${stats.timeMs}ms · ${tps} tok/s · ${stats.promptTokens} prompt`,
+		`🎯 ${stats.triggerReason} · ⏱ ${stats.delay}ms · 💤 ${stats.inactivityMs}ms`,
+		`😊 v=${stats.messageValence.toFixed(3)} · a=${stats.messageArousal.toFixed(3)}`,
+		`📊 state v=${stats.emotionStateValence.toFixed(3)} · a=${stats.emotionStateArousal.toFixed(3)}`,
+		`🏷 ${stats.classificationLabel} (${(stats.classificationConfidence * 100).toFixed(1)}%)`,
+	];
+	if (stats.behavior) {
+		const b = stats.behavior;
+		const sleepStr = b.sleepMode ? ` · sleep=${b.sleepMode}` : "";
+		const typoStr = b.typoApplied ? " ✨" : "";
+		const swapStr = b.swapApplied ? " ✨" : "";
+		const burstStr = b.burstApplied ? " ✨" : "";
+		const hesitateStr = b.hesitationApplied ? " ✨" : "";
+		const voiceStr = b.voiceApplied ? " ✨" : "";
+		lines.push(
+			`⚙ typo=${(b.typoChance * 100).toFixed(0)}%${typoStr} · swap=${(b.swapChance * 100).toFixed(0)}%${swapStr} · burst=${(b.burstChance * 100).toFixed(0)}%${burstStr} · hesitate=${(b.hesitationChance * 100).toFixed(0)}%${hesitateStr} · voice=${(b.voiceChance * 100).toFixed(0)}%${voiceStr} · forget=${(b.forgetChance * 100).toFixed(0)}%${sleepStr} · fatigue=${b.fatigueMultiplier.toFixed(1)}x`,
+		);
+	}
+	return `\n${lines.join("\n")}`;
+}
+
 async function executeRespond(cmd: RespondCommand): Promise<void> {
 	const {
 		channel: roomId,
@@ -58,6 +84,7 @@ async function executeRespond(cmd: RespondCommand): Promise<void> {
 		hesitationWord,
 		burstPlan,
 		react,
+		debugStats,
 		typoCorrection,
 		letterSwap,
 	} = cmd;
@@ -91,6 +118,9 @@ async function executeRespond(cmd: RespondCommand): Promise<void> {
 		if (i === 0 && currentHesitation) {
 			content = `${currentHesitation} ${frag}`;
 			currentHesitation = "";
+		}
+		if (i === 0 && debugStats) {
+			content += formatDebugLines(debugStats);
 		}
 
 		if (i === 0) {
