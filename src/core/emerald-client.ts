@@ -13,6 +13,7 @@ export type MessageEvent = {
 	timestamp: number;
 	isDM: boolean;
 	mentions?: string[];
+	debug?: boolean;
 };
 
 export type ReadyEvent = {

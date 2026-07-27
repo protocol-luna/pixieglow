@@ -207,6 +207,16 @@ async function handleRoomEvent(
 	const _roomName = getRoomDisplayName(roomId);
 	const isDM = client.joinedRooms.get(roomId)?.members.length === 2;
 
+	let text = body;
+	let debug = false;
+	if (text.startsWith("-debug ")) {
+		debug = true;
+		text = text.slice(7).trim();
+	} else if (text === "-debug") {
+		debug = true;
+		text = "";
+	}
+
 	emerald.sendEvent({
 		type: "message",
 		id: event.event_id,
@@ -214,9 +224,10 @@ async function handleRoomEvent(
 		channel: roomId,
 		user: event.sender,
 		username: client.getDisplayName(event.sender),
-		text: body,
+		text,
 		timestamp: Date.now(),
 		isDM,
+		debug,
 	});
 }
 
