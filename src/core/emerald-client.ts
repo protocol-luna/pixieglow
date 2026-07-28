@@ -88,6 +88,8 @@ export type DebugStats = {
 	tokensPerSecond: number;
 	emotionStateValence: number;
 	emotionStateArousal: number;
+	prevEmotionStateValence: number;
+	prevEmotionStateArousal: number;
 	classificationLabel: string;
 	classificationConfidence: number;
 	messageValence: number;

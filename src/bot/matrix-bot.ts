@@ -56,7 +56,7 @@ function formatDebugLines(stats: DebugStats): string {
 		`${rubyIcon} ${stats.completionTokens} tok · ${stats.timeMs}ms · ${tps} tok/s · ${stats.promptTokens} prompt`,
 		`🎯 ${stats.triggerReason} · ⏱ ${stats.delay}ms · 💤 ${stats.inactivityMs}ms`,
 		`😊 v=${stats.messageValence.toFixed(3)} · a=${stats.messageArousal.toFixed(3)}`,
-		`📊 state v=${stats.emotionStateValence.toFixed(3)} · a=${stats.emotionStateArousal.toFixed(3)}`,
+		`📊 state v=${stats.emotionStateValence.toFixed(3)} (${(stats.emotionStateValence - stats.prevEmotionStateValence) >= 0 ? '+' : ''}${(stats.emotionStateValence - stats.prevEmotionStateValence).toFixed(3)}) · a=${stats.emotionStateArousal.toFixed(3)} (${(stats.emotionStateArousal - stats.prevEmotionStateArousal) >= 0 ? '+' : ''}${(stats.emotionStateArousal - stats.prevEmotionStateArousal).toFixed(3)})`,
 		`🏷 ${stats.classificationLabel} (${(stats.classificationConfidence * 100).toFixed(1)}%)`,
 	];
 	if (stats.behavior) {
