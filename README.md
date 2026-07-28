@@ -67,14 +67,14 @@ A complete Matrix Client-Server API v3 wrapper using raw `fetch()` with bearer t
 | `whoami()` | `GET /account/whoami` | Get user_id and device_id |
 | `sync(since, timeout)` | `GET /sync` | Long-poll for new events (30s timeout) |
 | `sendMessage(roomId, content)` | `PUT /send/m.room.message/{txnId}` | Send any message type |
-| `sendText(roomId, text, replyTo?)` | — | Send `m.text` with optional reply |
-| `sendEmote(roomId, text, replyTo?)` | — | Send `m.emote` |
-| `sendReaction(roomId, eventId, emoji)` | — | Send `m.reaction` |
-| `editMessage(roomId, eventId, newBody)` | — | Edit via `m.replace` |
+| `sendText(roomId, text, replyTo?)` | -- | Send `m.text` with optional reply |
+| `sendEmote(roomId, text, replyTo?)` | -- | Send `m.emote` |
+| `sendReaction(roomId, eventId, emoji)` | -- | Send `m.reaction` |
+| `editMessage(roomId, eventId, newBody)` | -- | Edit via `m.replace` |
 | `setTyping(roomId, timeout)` | `PUT /typing/{userId}` | Show typing indicator |
 | `markRead(roomId, eventId)` | `POST /read_markers` | Mark room as read |
 | `getRoomMembers(roomId)` | `GET /members` | Fetch joined members |
-| `joinRoom(roomIdOrAlias)` / `leaveRoom(roomId)` | — | Room membership |
+| `joinRoom(roomIdOrAlias)` / `leaveRoom(roomId)` | -- | Room membership |
 | `uploadMedia(data, mimeType)` | `POST /_matrix/media/v3/upload` | Upload files |
 | `updatePresence(presence)` | `PUT /presence/{userId}/status` | Set online/offline/unavailable |
 
@@ -100,26 +100,26 @@ async function runSyncLoop(initialSince?: string): Promise<void> {
 Each iteration:
 1. Long-polls Matrix `GET /sync` (blocking up to 30s)
 2. Updates the sync cursor to `next_batch`
-3. Processes `state.events` — updates cached room name and member map
-4. Processes `timeline.events` — each `m.room.message` (not from self, text type) forwarded to Emerald as `MessageEvent`
+3. Processes `state.events` -- updates cached room name and member map
+4. Processes `timeline.events` -- each `m.room.message` (not from self, text type) forwarded to Emerald as `MessageEvent`
 5. Auto-joins invited rooms
 6. On error: logs and waits 5s before retrying
 
-The `since` token is kept **in memory only** — a restart causes a full initial sync.
+The `since` token is kept **in memory only** -- a restart causes a full initial sync.
 
 ### Init Sequence (`src/bot/matrix-bot.ts`, lines 342-388)
 
 ```
 startBot()
-  → client.whoami()              — get user_id and device_id
-  → client.sync(null, 10000)     — initial sync (full state, 10s timeout)
+  → client.whoami()              -- get user_id and device_id
+  → client.sync(null, 10000)     -- initial sync (full state, 10s timeout)
   → Process initial rooms:
       rooms.join  → fetch members, cache JoinedRoom
       rooms.invite → auto-join, fetch members, cache
   → client.updatePresence("online")
   → emerald.setUserId(botId, username)
-  → emerald.connect()            — sends ReadyEvent to Emerald
-  → runSyncLoop(next_batch)      — start incremental sync
+  → emerald.connect()            -- sends ReadyEvent to Emerald
+  → runSyncLoop(next_batch)      -- start incremental sync
 ```
 
 ### Response Execution (`src/bot/matrix-bot.ts:executeRespond()`)
@@ -149,24 +149,24 @@ Same protocol as Jade. Wire format:
 - `{ event: "command", command: OutCommand }` ← from Emerald
 
 **Commands received from Emerald:**
-- `respond` — with `responseText`, `burstPlan`, `hesitationWord`, `typoCorrection`, `letterSwap`, `react`
-- `typing` — show typing indicator for duration ms
-- `set_presence` — update Matrix presence
-- `spontaneous` — placeholder, not fully wired
+- `respond` -- with `responseText`, `burstPlan`, `hesitationWord`, `typoCorrection`, `letterSwap`, `react`
+- `typing` -- show typing indicator for duration ms
+- `set_presence` -- update Matrix presence
+- `spontaneous` -- placeholder, not fully wired
 
 ### Event Types
 
 **Pixieglow → Emerald (Inbound):**
-- `MessageEvent` — `{ type, id, client, channel, user, username, text, timestamp, isDM, debug? }`
-- `ReadyEvent` — handshake on connect
-- `BotMessageEvent` — echo of Pixieglow's own messages
-- `PresenceEvent` — presence changes
+- `MessageEvent` -- `{ type, id, client, channel, user, username, text, timestamp, isDM, debug? }`
+- `ReadyEvent` -- handshake on connect
+- `BotMessageEvent` -- echo of Pixieglow's own messages
+- `PresenceEvent` -- presence changes
 
 **Emerald → Pixieglow (Outbound):**
-- `RespondCommand` — full response with behavior annotations
-- `TypingCommand` — typing indicator
-- `SetPresenceCommand` — online/idle/dnd/invisible
-- `SpontaneousCommand` — trigger unbidden message
+- `RespondCommand` -- full response with behavior annotations
+- `TypingCommand` -- typing indicator
+- `SetPresenceCommand` -- online/idle/dnd/invisible
+- `SpontaneousCommand` -- trigger unbidden message
 
 ## Configuration
 
