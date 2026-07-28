@@ -5,8 +5,8 @@ import {
 	MATRIX_USERNAME,
 } from "../config.js";
 import {
-	EmeraldClient,
 	type DebugStats,
+	EmeraldClient,
 	type OutCommand,
 	type RespondCommand,
 	type SetPresenceCommand,
@@ -156,15 +156,24 @@ async function executeRespond(cmd: RespondCommand): Promise<void> {
 	}
 
 	if (typoCorrection || letterSwap) {
-		const correction = (typoCorrection ?? letterSwap)!;
+		const correction = typoCorrection ?? letterSwap;
+		if (!correction) return;
 		const sentText = hesitationWord
 			? `${hesitationWord} ${parts[0]}`
 			: parts[0];
 		setTimeout(async () => {
 			try {
 				const correctedText = typoCorrection
-					? sentText.replace(typoCorrection.correctedWord, typoCorrection.originalWord)
-					: sentText.replace(letterSwap!.corrected, letterSwap!.original);
+					? sentText.replace(
+							typoCorrection.correctedWord,
+							typoCorrection.originalWord,
+						)
+					: sentText.replace(
+							// biome-ignore lint/style/noNonNullAssertion: guarded by if(typoCorrection || letterSwap)
+							letterSwap!.corrected,
+							// biome-ignore lint/style/noNonNullAssertion: guarded by if(typoCorrection || letterSwap)
+							letterSwap!.original,
+						);
 				if (correctedText !== sentText && _firstMsgId) {
 					await client.editMessage(roomId, _firstMsgId, correctedText);
 				}
